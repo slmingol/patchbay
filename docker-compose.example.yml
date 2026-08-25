@@ -22,12 +22,11 @@
 
 services:
   patchbay:
-    build:
-      context: .      # or image: <your registry>/patchbay
-      args:
-        # stamps the running build into the page header, so "is this the
-        # version I think it is?" has an answer
-        GIT_SHA: "${GIT_SHA:-dev}"
+    image: ghcr.io/dsmorgan/patchbay:main   # pre-built; or swap for build: below
+    # build:
+    #   context: .
+    #   args:
+    #     GIT_SHA: "${GIT_SHA:-dev}"
     ports:
       - "8484:8080"
     environment:
@@ -39,10 +38,11 @@ services:
     restart: unless-stopped
 
   patchbay-poller:
-    build:
-      context: .
-      args:
-        GIT_SHA: "${GIT_SHA:-dev}"
+    image: ghcr.io/dsmorgan/patchbay:main   # same image, different command
+    # build:
+    #   context: .
+    #   args:
+    #     GIT_SHA: "${GIT_SHA:-dev}"
     command: sh -c 'while true; do patchbay poll; sleep "${PATCHBAY_POLL_INTERVAL:-300}"; done'
     environment:
       - TZ=${TZ:-UTC}
