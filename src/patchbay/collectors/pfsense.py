@@ -114,6 +114,16 @@ class PfsenseCollector:
                 )
                 n_ifaces += 1
 
+            # Purge any tunnel interfaces written before the filter was in place.
+            # The interfaces table has no source column, so we target by name prefix
+            # (mirrors _TUNNEL_PREFIXES) rather than by source ownership.
+            conn.execute(
+                "DELETE FROM interfaces WHERE device_id = ? AND ("
+                "name LIKE 'tun%' OR name LIKE 'ovpn%' "
+                "OR name LIKE 'gif%' OR name LIKE 'gre%')",
+                (dev_id,),
+            )
+
             # Gateway health — prune stale rows then re-insert filtered set.
             # Prune first so gateways removed from pfSense (or now filtered) don't linger.
             conn.execute("DELETE FROM gateways WHERE source = ?", (NAME,))
