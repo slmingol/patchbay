@@ -18,6 +18,21 @@ from . import register
 
 NAME = "pfsense"
 
+# Interface name prefixes that indicate VPN tunnels — not physical connections
+# and not useful for topology. Skipped for both interfaces and gateways.
+_TUNNEL_PREFIXES = ("tun", "ovpn", "gif", "gre")
+
+# Interface types reported by pfSense REST API that are VPN/virtual only
+_TUNNEL_TYPES = {"wireguard", "openvpn", "ipsec", "gif", "gre"}
+
+
+def _is_tunnel(iface_id: str, iface_type: str | None = None) -> bool:
+    name = iface_id.lower()
+    return (
+        name.startswith(_TUNNEL_PREFIXES)
+        or (iface_type or "").lower() in _TUNNEL_TYPES
+    )
+
 
 class PfsenseCollector:
     name = NAME
@@ -72,11 +87,17 @@ class PfsenseCollector:
                 if key:
                     iface_status[key] = i
 
+            # Collect tunnel interface ids so we can skip their gateways too
+            tunnel_iface_ids: set[str] = set()
+
             iface_cfg = get("api/v2/interfaces") or []
             n_ifaces = 0
             for iface in (iface_cfg if isinstance(iface_cfg, list) else []):
                 iface_id = iface.get("if") or iface.get("id")
                 if not iface_id:
+                    continue
+                if _is_tunnel(iface_id, iface.get("type")):
+                    tunnel_iface_ids.add(iface_id)
                     continue
                 live = iface_status.get(iface_id, {})
                 mac = (live.get("mac") or iface.get("mac") or "").lower() or None
@@ -93,11 +114,14 @@ class PfsenseCollector:
                 )
                 n_ifaces += 1
 
-            # Gateway health
+            # Gateway health — skip gateways whose interface is a VPN tunnel
             gw_status = get("api/v2/status/gateways") or []
             for gw in (gw_status if isinstance(gw_status, list) else []):
                 gw_name = gw.get("name")
                 if not gw_name:
+                    continue
+                gw_iface = gw.get("interface") or ""
+                if gw_iface in tunnel_iface_ids or _is_tunnel(gw_iface):
                     continue
                 conn.execute(
                     "INSERT INTO gateways (name, address, status, loss, delay, source, last_seen) "
