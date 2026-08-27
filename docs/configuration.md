@@ -116,6 +116,7 @@ Each collector activates when its variables are set and is skipped otherwise.
 | phpIPAM | `IPAM_URL`, `IPAM_APP_ID`, `IPAM_TOKEN` |
 | UniFi Network app | `UNIFI_URL`, `UNIFI_USER`, `UNIFI_PASS` |
 | OPNsense | `OPNSENSE_HOST`, `OPNSENSE_API_KEY`, `OPNSENSE_API_SECRET` — see [OPNsense privileges](#opnsense-api-user-privileges) |
+| pfSense | `PFSENSE_HOST`, `PFSENSE_API_KEY`, `PFSENSE_API_SECRET` — requires the [pfSense REST API package](#pfsense-rest-api-package) |
 | vSphere | `VSPHERE_HOST`, `VSPHERE_USER`, `VSPHERE_PASS`, optional `VSPHERE_TLS_VERIFY` (per-source verify override) |
 
 `VSPHERE_TLS_VERIFY` exists because a stock vCenter serves a self-signed VMCA
@@ -149,6 +150,31 @@ broadest read-only interfaces privilege available.
 `OPNSENSE_HOST` accepts a bare hostname (`opnsense-rtr1.bub.lan`, defaults to
 HTTPS) or a full URL with scheme (`http://opnsense-rtr1.bub.lan`) for
 installations that do not terminate TLS on the management interface.
+
+### pfSense REST API package
+
+pfSense does not ship a usable REST API by default. This collector requires
+the **pfSense REST API** package from [pfrest](https://github.com/pfrest/pfsense-restapi)
+(distinct from the legacy `pfsense-api` package). Install it via the package
+manager or via SSH:
+
+```sh
+pkg install -y https://github.com/pfrest/pfSense-pkg-RESTAPI/releases/download/v2.7.2/pfSense-2.7.2-pkg-RESTAPI.pkg
+/etc/rc.restart_webgui
+```
+
+Then navigate to **System > API**, enable the API, and create credentials
+under **API Keys**. The resulting Client-Id goes in `PFSENSE_API_KEY` and
+the Client-Secret goes in `PFSENSE_API_SECRET`. The collector sends the
+Client-Secret as the `x-api-key` request header, which is the format the
+pfrest package expects.
+
+`PFSENSE_HOST` must include the scheme (`https://firewall.example.internal`).
+A bare hostname defaults to HTTPS.
+
+The API user needs read access to interfaces, gateways, and DHCP services.
+A 403 on any endpoint is logged and skipped rather than aborting the poll,
+so partial privilege grants degrade gracefully.
 
 ## Operator declarations
 
