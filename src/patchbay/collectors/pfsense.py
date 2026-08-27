@@ -118,6 +118,8 @@ class PfsenseCollector:
             # Prune first so gateways removed from pfSense (or now filtered) don't linger.
             conn.execute("DELETE FROM gateways WHERE source = ?", (NAME,))
             gw_status = get("api/v2/status/gateways") or []
+            if gw_status:
+                db.save_raw(conn, source=NAME, endpoint="status/gateways", payload=gw_status)
             for gw in (gw_status if isinstance(gw_status, list) else []):
                 gw_name = gw.get("name")
                 if not gw_name:
@@ -131,6 +133,16 @@ class PfsenseCollector:
                 if gw_name.upper().endswith(("_VPNV4", "_VPNV6", "_VPN", "_GW")) \
                         and any(kw in gw_name.upper() for kw in ("VPN", "WG", "TUN", "OVPN")):
                     continue
+                # Map pfSense status string → patchbay status.
+                # API returns "status": "online"|"down"|"unknown"|"loss" (string, not bool).
+                # "unknown" means pfSense has no RTT data yet (e.g. IPv6 gateway pending).
+                raw_status = (gw.get("status") or "").lower()
+                if raw_status == "online":
+                    status = "up"
+                elif raw_status in ("down", "loss"):
+                    status = "down"
+                else:
+                    status = raw_status or None  # "unknown", "pending", etc. passed through
                 conn.execute(
                     "INSERT INTO gateways (name, address, status, loss, delay, source, last_seen) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?) "
@@ -138,8 +150,8 @@ class PfsenseCollector:
                     "status=excluded.status, loss=excluded.loss, delay=excluded.delay, "
                     "last_seen=excluded.last_seen",
                     (gw_name, gw.get("gateway"),
-                     "up" if gw.get("online") else "down",
-                     gw.get("loss"), gw.get("delay"), NAME, db.now()),
+                     status,
+                     gw.get("loss"), gw.get("stddev") or gw.get("delay"), NAME, db.now()),
                 )
 
             # DHCP static mappings as endpoints (hostname + IP + MAC)
