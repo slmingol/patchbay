@@ -128,7 +128,8 @@ class PfsenseCollector:
                     continue
                 # Also skip if the gateway name itself ends with VPN tier suffixes
                 # (catches WireGuard peers whose interface type isn't reported as wireguard)
-                if gw_name.upper().endswith(("_VPNV4", "_VPNV6", "_VPN")):
+                if gw_name.upper().endswith(("_VPNV4", "_VPNV6", "_VPN", "_GW")) \
+                        and any(kw in gw_name.upper() for kw in ("VPN", "WG", "TUN", "OVPN")):
                     continue
                 conn.execute(
                     "INSERT INTO gateways (name, address, status, loss, delay, source, last_seen) "
