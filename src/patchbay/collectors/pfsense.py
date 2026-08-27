@@ -114,14 +114,21 @@ class PfsenseCollector:
                 )
                 n_ifaces += 1
 
-            # Gateway health — skip gateways whose interface is a VPN tunnel
+            # Gateway health — prune stale rows then re-insert filtered set.
+            # Prune first so gateways removed from pfSense (or now filtered) don't linger.
+            conn.execute("DELETE FROM gateways WHERE source = ?", (NAME,))
             gw_status = get("api/v2/status/gateways") or []
             for gw in (gw_status if isinstance(gw_status, list) else []):
                 gw_name = gw.get("name")
                 if not gw_name:
                     continue
-                gw_iface = gw.get("interface") or ""
+                # Skip gateways whose interface is a tunnel (by id set or name prefix)
+                gw_iface = gw.get("interface") or gw.get("friendlyiface") or ""
                 if gw_iface in tunnel_iface_ids or _is_tunnel(gw_iface):
+                    continue
+                # Also skip if the gateway name itself ends with VPN tier suffixes
+                # (catches WireGuard peers whose interface type isn't reported as wireguard)
+                if gw_name.upper().endswith(("_VPNV4", "_VPNV6", "_VPN")):
                     continue
                 conn.execute(
                     "INSERT INTO gateways (name, address, status, loss, delay, source, last_seen) "
