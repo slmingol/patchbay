@@ -149,9 +149,10 @@ class PfsenseCollector:
                     "ON CONFLICT(name) DO UPDATE SET address=excluded.address, "
                     "status=excluded.status, loss=excluded.loss, delay=excluded.delay, "
                     "last_seen=excluded.last_seen",
-                    (gw_name, gw.get("gateway"),
+                    (gw_name,
+                     gw.get("monitorip") or gw.get("srcip"),
                      status,
-                     gw.get("loss"), gw.get("stddev") or gw.get("delay"), NAME, db.now()),
+                     gw.get("loss"), gw.get("stddev"), NAME, db.now()),
                 )
 
             # DHCP static mappings as endpoints (hostname + IP + MAC)
