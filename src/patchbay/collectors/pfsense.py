@@ -101,6 +101,7 @@ class PfsenseCollector:
                 conn, name=dev_name, source=NAME, role="firewall", status="up",
                 vendor="pfSense",
                 os=(f"pfsense {version}" if version else None),
+                mgmt_ip=_hostname,
             )
 
             # Build live-status index keyed by BSD interface name.
